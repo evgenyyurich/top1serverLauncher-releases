@@ -1,0 +1,51 @@
+name: Sync content from Discord
+
+# Pulls news/devblog from the Discord forum channels into content.json.
+# Triggers: every ~10 min, and a manual "Run workflow" button. NOT on pull_request —
+# that would expose the bot token to fork PRs (see CONTENT-AUTOMATION.md, security).
+on:
+  schedule:
+    - cron: "*/10 * * * *" # GitHub may delay scheduled runs by a few minutes
+  workflow_dispatch: {}
+
+# Never run two syncs at once (they'd race on the commit).
+concurrency:
+  group: sync-content
+  cancel-in-progress: false
+
+# The built-in GITHUB_TOKEN needs write to push the regenerated content.json.
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build content.json from Discord
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          GUILD_ID: ${{ vars.GUILD_ID }}
+          NEWS_CHANNEL_ID: ${{ vars.NEWS_CHANNEL_ID }}
+          DEVBLOG_CHANNEL_ID: ${{ vars.DEVBLOG_CHANNEL_ID }}
+          NEWS_LIMIT: ${{ vars.NEWS_LIMIT }}
+          DEVBLOG_LIMIT: ${{ vars.DEVBLOG_LIMIT }}
+        run: node scripts/build-content.mjs
+
+      - name: Commit content.json if it changed
+        run: |
+          if git diff --quiet -- content.json; then
+            echo "content.json unchanged — nothing to commit."
+          else
+            git config user.name "top1server-content-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add content.json
+            git commit -m "content: sync from Discord [skip ci]"
+            git push
+            echo "content.json updated."
+          fi
