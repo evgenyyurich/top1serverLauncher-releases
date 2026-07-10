@@ -57,7 +57,7 @@
 | Тип | Имя | Значение |
 |-----|-----|----------|
 | **Secret** | `DISCORD_TOKEN` | токен бота из шага 2 |
-| Variable | `GUILD_ID` | ID сервера |
+| Variable | `GUILD_ID` | ID сервера — **опц.**, вычисляется из `NEWS_CHANNEL_ID`, можно не задавать |
 | Variable | `NEWS_CHANNEL_ID` | ID форум-канала новостей |
 | Variable | `DEVBLOG_CHANNEL_ID` | ID форум-канала девблога (опц.) |
 | Variable | `NEWS_LIMIT` | сколько новостей держать (по умолч. 12) |

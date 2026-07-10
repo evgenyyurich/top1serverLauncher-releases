@@ -190,9 +190,18 @@ async function loadExisting(file) {
 }
 
 async function main() {
-  if (!cfg.token || !cfg.guildId || !cfg.newsChannelId) {
-    console.log("Discord content sync not configured (need DISCORD_TOKEN, GUILD_ID, NEWS_CHANNEL_ID) — skipping.");
+  if (!cfg.token || !cfg.newsChannelId) {
+    console.log("Discord content sync not configured (need DISCORD_TOKEN and NEWS_CHANNEL_ID) — skipping.");
     return;
+  }
+
+  // GUILD_ID is optional: derive it from the news channel when not supplied, so the owner
+  // never has to hunt down the server id (a channel belongs to exactly one guild).
+  if (!cfg.guildId) {
+    const ch = await dfetch(`/channels/${cfg.newsChannelId}`);
+    cfg.guildId = ch.guild_id || "";
+    if (!cfg.guildId) throw new Error("could not resolve guild id from NEWS_CHANNEL_ID");
+    console.log(`Resolved GUILD_ID ${cfg.guildId} from the news channel.`);
   }
 
   const existing = await loadExisting(cfg.file);
