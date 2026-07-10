@@ -1,62 +1,62 @@
 {
-  "_comment": "Живой контент-фид лаунчера top1server. Редактируй этот файл — лаунчеры подхватят изменения при следующем старте (raw.githubusercontent → ServerConfig.ContentUrl). Схема: news[{id,date,category,title,summary,url}], devblog[{id,build,date,title,summary,url}], banner{season,title,subtitle,image}, shop[{tier,price,perks[],recommended}]. category: update|event|maintenance (неизвестное → серый бейдж). Даты ISO (2026-07-11) → «11 июля». Только публичный маркетинг, без секретов. Подробности: HANDOFF-content-strategy.md.",
-
   "banner": {
     "season": "СЕЗОН 4",
     "title": "Небесные острова",
     "subtitle": "Открытие в пятницу • 18:00 МСК",
     "image": "background.jpg"
   },
-
-  "news": [
-    {
-      "id": "s4-open",
-      "date": "2026-07-11",
-      "category": "event",
-      "title": "Открытие Сезона 4: Небесные острова",
-      "summary": "В пятницу в 18:00 МСК стартует новый сезон — свежая карта, парящие острова и ивенты первой недели. Заходите заранее, слоты ограничены.",
-      "url": "https://discord.gg/top1server"
-    },
-    {
-      "id": "client-1-21-11",
-      "date": "2026-07-09",
-      "category": "update",
-      "title": "Клиент обновлён до 1.21.11",
-      "summary": "Лаунчер теперь пинит версию 1.21.11 и подключает вас к серверу автоматически. Просто нажмите «Играть».",
-      "url": "https://discord.gg/top1server"
-    },
-    {
-      "id": "maint-07-08",
-      "date": "2026-07-08",
-      "category": "maintenance",
-      "title": "Техработы 8 июля, 04:00–05:00 МСК",
-      "summary": "Плановое обслуживание прокси и базы данных. Возможны кратковременные отключения. Прогресс не пострадает.",
-      "url": "https://discord.gg/top1server"
-    }
-  ],
-
+  "news": [],
   "devblog": [
     {
-      "id": "db-chunks",
-      "build": "1.21.11",
-      "date": "2026-07-09",
-      "title": "Оптимизация подгрузки чанков",
-      "summary": "Переписали очередь генерации: меньше микролагов при полёте над островами и быстрее прогрузка на спавне.",
-      "url": "https://discord.gg/top1server"
+      "id": "1469056772852551832",
+      "build": "",
+      "date": "2026-02-05T19:47:22.919Z",
+      "title": "Что вы думаете про эту локацию?",
+      "summary": "",
+      "url": "https://discord.com/channels/534003801120833537/1469056772852551832"
     },
     {
-      "id": "db-auth",
-      "build": "1.21.11",
-      "date": "2026-07-06",
-      "title": "Готовим вход без /login",
-      "summary": "Тестируем pre-auth на прокси: скоро лаунчер будет авторизовать вас автоматически, без ручной команды в чате.",
-      "url": "https://discord.gg/top1server"
+      "id": "1468674086803738725",
+      "build": "",
+      "date": "2026-02-04T18:30:00.724Z",
+      "title": "Что вы думаете про эту механику?",
+      "summary": "",
+      "url": "https://discord.com/channels/534003801120833537/1468674086803738725"
     }
   ],
-
   "shop": [
-    { "tier": "VIP",   "price": "199 ₽",  "perks": ["Цветной ник", "Кит VIP раз в день", "Приоритет входа"], "recommended": false },
-    { "tier": "PREMIUM", "price": "399 ₽", "perks": ["Всё из VIP", "2 дома", "/hat и /nick", "Доступ к ивент-мирам"], "recommended": true },
-    { "tier": "LEGEND", "price": "799 ₽", "perks": ["Всё из PREMIUM", "Полёт в лобби", "Уникальный префикс", "Ранний доступ к контенту"], "recommended": false }
-  ]
+    {
+      "tier": "VIP",
+      "price": "199 ₽",
+      "perks": [
+        "Цветной ник",
+        "Кит VIP раз в день",
+        "Приоритет входа"
+      ],
+      "recommended": false
+    },
+    {
+      "tier": "PREMIUM",
+      "price": "399 ₽",
+      "perks": [
+        "Всё из VIP",
+        "2 дома",
+        "/hat и /nick",
+        "Доступ к ивент-мирам"
+      ],
+      "recommended": true
+    },
+    {
+      "tier": "LEGEND",
+      "price": "799 ₽",
+      "perks": [
+        "Всё из PREMIUM",
+        "Полёт в лобби",
+        "Уникальный префикс",
+        "Ранний доступ к контенту"
+      ],
+      "recommended": false
+    }
+  ],
+  "_comment": "Живой контент-фид лаунчера top1server. Редактируй этот файл — лаунчеры подхватят изменения при следующем старте (raw.githubusercontent → ServerConfig.ContentUrl). Схема: news[{id,date,category,title,summary,url}], devblog[{id,build,date,title,summary,url}], banner{season,title,subtitle,image}, shop[{tier,price,perks[],recommended}]. category: update|event|maintenance (неизвестное → серый бейдж). Даты ISO (2026-07-11) → «11 июля». Только публичный маркетинг, без секретов. Подробности: HANDOFF-content-strategy.md."
 }
