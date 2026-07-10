@@ -84,14 +84,15 @@ async function collectThreads(channelId) {
   return [...byId.values()];
 }
 
-// First post of a thread as a teaser. Forum posts: the starter message shares the thread id
-// (one fast GET). Fallback: the oldest message actually inside the thread (works for threads
-// whose parent is a text channel, where id != any in-thread message). Empty when nothing is
-// readable or the bot lacks the Message Content intent (title/date/tag still work regardless).
-async function starterSummary(threadId) {
+// First post of a thread, RAW (markdown + custom <:emoji:id> preserved) — the launcher's reader
+// renders it. Forum posts: the starter message shares the thread id (one fast GET). Fallback: the
+// oldest message actually inside the thread (works for threads whose parent is a text channel, where
+// id != any in-thread message). Empty when nothing is readable or the bot lacks the Message Content
+// intent (title/date/tag still work regardless). The caller derives the plain teaser via plainText.
+async function starterContent(threadId) {
   try {
     const msg = await dfetch(`/channels/${threadId}/messages/${threadId}`);
-    return truncate(plainText(msg.content || ""), cfg.summaryMax);
+    return String(msg.content || "");
   } catch {
     // not a forum-style starter — fall through to the oldest in-thread message
   }
@@ -99,7 +100,7 @@ async function starterSummary(threadId) {
     const msgs = await dfetch(`/channels/${threadId}/messages?after=0&limit=1`);
     if (Array.isArray(msgs) && msgs.length) {
       const first = msgs.reduce((a, b) => (BigInt(a.id) <= BigInt(b.id) ? a : b));
-      return truncate(plainText(first.content || ""), cfg.summaryMax);
+      return String(first.content || "");
     }
   } catch (e) {
     console.warn(`  no starter message for ${threadId}: ${e.message}`);
@@ -186,6 +187,19 @@ export function titleAndSummary(content, summaryMax) {
   return { title: truncate(title, 140), summary: truncate(rest, summaryMax) };
 }
 
+// Message-mode takes the first non-empty line as the card title, so strip it (and the blank lines
+// around it) from the reader body — otherwise the article would print its own title twice. Whatever
+// follows keeps its RAW Discord markdown (bold, lists, quotes, custom <:emoji:id>) for the launcher
+// to render. Returns "" for a one-line message (the reader then falls back to the summary).
+export function bodyAfterTitle(content) {
+  const lines = String(content || "").split("\n");
+  let i = 0;
+  while (i < lines.length && plainText(lines[i]).length === 0) i++; // leading blank/decorative lines
+  i++;                                                              // the title line itself
+  while (i < lines.length && plainText(lines[i]).length === 0) i++; // blank lines after the title
+  return lines.slice(i).join("\n").trim();
+}
+
 // Feed from a FORUM channel: one thread = one card (name -> title, first post -> summary, tag -> category/build).
 async function feedFromThreads(channel, channelId, limit, kind) {
   const tags = new Map((channel.available_tags || []).map((t) => [t.id, t.name]));
@@ -195,16 +209,18 @@ async function feedFromThreads(channel, channelId, limit, kind) {
   const items = [];
   for (const t of top) {
     const tagName = tags.get((t.applied_tags || [])[0]) || "";
+    const raw = await starterContent(t.id);                   // full starter post (markdown + emoji)
     const common = {
       id: t.id,
       date: threadDate(t),
       title: (t.name || "").trim(),
-      summary: await starterSummary(t.id),
+      summary: truncate(plainText(raw), cfg.summaryMax),       // clean teaser for the card
+      body: raw,                                               // full article for the in-app reader
       url: `https://discord.com/channels/${cfg.guildId}/${t.id}`,
     };
     items.push(kind === "devblog"
-      ? { id: common.id, build: tagName.trim(), date: common.date, title: common.title, summary: common.summary, url: common.url }
-      : { id: common.id, date: common.date, category: mapCategory(tagName), title: common.title, summary: common.summary, url: common.url });
+      ? { id: common.id, build: tagName.trim(), date: common.date, title: common.title, summary: common.summary, body: common.body, url: common.url }
+      : { id: common.id, date: common.date, category: mapCategory(tagName), title: common.title, summary: common.summary, body: common.body, url: common.url });
   }
   return items;
 }
@@ -220,17 +236,19 @@ async function feedFromMessages(channelId, limit, kind) {
   for (const m of arr) {
     if (m.type !== 0 && m.type !== 19) continue;      // skip system messages (joins, pins, …)
     if (!plainText(m.content || "")) continue;         // skip image-only / empty posts
-    const { title, summary } = titleAndSummary(m.content, cfg.summaryMax);
+    const raw = String(m.content || "");
+    const { title, summary } = titleAndSummary(raw, cfg.summaryMax);
     const common = {
       id: m.id,
       date: m.timestamp || snowflakeToISO(m.id),
       title,
       summary,
+      body: bodyAfterTitle(raw),                       // full article (title line stripped) for the reader
       url: `https://discord.com/channels/${cfg.guildId}/${channelId}/${m.id}`,
     };
     items.push(kind === "devblog"
-      ? { id: common.id, build: "", date: common.date, title: common.title, summary: common.summary, url: common.url }
-      : { id: common.id, date: common.date, category: "", title: common.title, summary: common.summary, url: common.url });
+      ? { id: common.id, build: "", date: common.date, title: common.title, summary: common.summary, body: common.body, url: common.url }
+      : { id: common.id, date: common.date, category: "", title: common.title, summary: common.summary, body: common.body, url: common.url });
     if (items.length >= limit) break;
   }
   console.log(`  ${kind}: ${items.length} card(s) from ${arr.length} messages`);
