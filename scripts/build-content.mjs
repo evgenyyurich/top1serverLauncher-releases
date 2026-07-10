@@ -134,7 +134,8 @@ export function plainText(md) {
   let s = String(md || "");
   s = s.replace(/```[\s\S]*?```/g, " ");           // fenced code
   s = s.replace(/`([^`]+)`/g, "$1");                // inline code
-  s = s.replace(/<a?:(\w+):\d+>/g, ":$1:");         // custom emoji -> :name:
+  s = s.replace(/<a?:\w+:\d+>/g, " ");              // custom emoji -> drop (server art clutters cards)
+  s = s.replace(/<t:\d+(?::[tTdDfFR])?>/g, " ");    // discord timestamps <t:123:F>
   s = s.replace(/<@[!&]?\d+>/g, "");                // user/role mentions
   s = s.replace(/<#\d+>/g, "");                     // channel mentions
   s = s.replace(/\|\|([^|]+)\|\|/g, "$1");          // spoilers
@@ -161,13 +162,28 @@ const newest = (a, b) => (threadDate(a) < threadDate(b) ? 1 : -1);
 
 // --- Build one feed -------------------------------------------------------------------------
 
-// Split a message body into a card title (first non-empty line) + summary (the rest).
+// Split a free-form message into a card title + summary. Uses the first NON-EMPTY line as the
+// title (messages often open with a blank/decorative line); a single long paragraph is split at
+// a sentence/word boundary so the title is never empty and never the whole wall of text.
 export function titleAndSummary(content, summaryMax) {
-  const raw = String(content || "");
-  const nl = raw.indexOf("\n");
-  const firstLine = plainText(nl >= 0 ? raw.slice(0, nl) : raw);
-  const rest = nl >= 0 ? plainText(raw.slice(nl + 1)) : "";
-  return { title: truncate(firstLine, 140), summary: truncate(rest, summaryMax) };
+  const lines = String(content || "")
+    .split("\n")
+    .map((l) => plainText(l))
+    .filter((l) => l.length > 0);
+  if (lines.length === 0) return { title: "", summary: "" };
+
+  let title = lines[0];
+  let rest = lines.slice(1).join(" ");
+
+  if (rest === "" && title.length > 90) {
+    // One long paragraph, no title line: cut at the first sentence end, else at a word boundary.
+    const head = title.slice(0, 90);
+    const sentence = head.match(/^(.*?[.!?…])(\s|$)/);
+    const at = sentence ? sentence[1].length : Math.max(head.lastIndexOf(" "), 60);
+    rest = title.slice(at).trim();
+    title = title.slice(0, at).trim();
+  }
+  return { title: truncate(title, 140), summary: truncate(rest, summaryMax) };
 }
 
 // Feed from a FORUM channel: one thread = one card (name -> title, first post -> summary, tag -> category/build).
