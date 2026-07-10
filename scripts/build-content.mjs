@@ -66,40 +66,45 @@ async function dfetch(pathname) {
 // All active threads in the guild that belong to `channelId`, plus a page of archived ones.
 async function collectThreads(channelId) {
   const byId = new Map();
+  let activeMatch = 0, archivedCount = 0;
 
   const active = await dfetch(`/guilds/${cfg.guildId}/threads/active`);
   for (const t of active.threads || []) {
-    if (t.parent_id === channelId) byId.set(t.id, t);
+    if (t.parent_id === channelId) { byId.set(t.id, t); activeMatch++; }
   }
 
   try {
     const archived = await dfetch(`/channels/${channelId}/threads/archived/public?limit=30`);
-    for (const t of archived.threads || []) byId.set(t.id, t);
+    for (const t of archived.threads || []) { byId.set(t.id, t); archivedCount++; }
   } catch (e) {
-    console.warn(`archived threads unavailable for ${channelId}: ${e.message}`);
+    console.warn(`  archived threads unavailable for ${channelId}: ${e.message}`);
   }
 
+  console.log(`  threads: active(matching)=${activeMatch}, archived=${archivedCount}, total=${byId.size}`);
   return [...byId.values()];
 }
 
-// Forum tag id -> tag name, from the parent channel's available_tags.
-async function tagMap(channelId) {
-  const channel = await dfetch(`/channels/${channelId}`);
-  const map = new Map();
-  for (const tag of channel.available_tags || []) map.set(tag.id, tag.name);
-  return map;
-}
-
-// First post of a forum thread: its id equals the thread id. Empty when the message is gone,
-// or when the bot lacks the Message Content intent (title/date/tag still work — summary just blanks).
+// First post of a thread as a teaser. Forum posts: the starter message shares the thread id
+// (one fast GET). Fallback: the oldest message actually inside the thread (works for threads
+// whose parent is a text channel, where id != any in-thread message). Empty when nothing is
+// readable or the bot lacks the Message Content intent (title/date/tag still work regardless).
 async function starterSummary(threadId) {
   try {
     const msg = await dfetch(`/channels/${threadId}/messages/${threadId}`);
     return truncate(plainText(msg.content || ""), cfg.summaryMax);
-  } catch (e) {
-    console.warn(`no starter message for ${threadId}: ${e.message}`);
-    return "";
+  } catch {
+    // not a forum-style starter — fall through to the oldest in-thread message
   }
+  try {
+    const msgs = await dfetch(`/channels/${threadId}/messages?after=0&limit=1`);
+    if (Array.isArray(msgs) && msgs.length) {
+      const first = msgs.reduce((a, b) => (BigInt(a.id) <= BigInt(b.id) ? a : b));
+      return truncate(plainText(first.content || ""), cfg.summaryMax);
+    }
+  } catch (e) {
+    console.warn(`  no starter message for ${threadId}: ${e.message}`);
+  }
+  return "";
 }
 
 // --- Pure helpers (exported for the unit test) ----------------------------------------------
@@ -158,7 +163,10 @@ const newest = (a, b) => (threadDate(a) < threadDate(b) ? 1 : -1);
 
 async function buildFeed(channelId, limit, kind /* "news" | "devblog" */) {
   if (!channelId) return [];
-  const [threads, tags] = await Promise.all([collectThreads(channelId), tagMap(channelId)]);
+  const channel = await dfetch(`/channels/${channelId}`);
+  const tags = new Map((channel.available_tags || []).map((t) => [t.id, t.name]));
+  console.log(`${kind}: "${channel.name}" type=${channel.type} (15=forum), forum-tags=${tags.size}`);
+  const threads = await collectThreads(channelId);
   const top = threads.sort(newest).slice(0, limit);
 
   const items = [];
