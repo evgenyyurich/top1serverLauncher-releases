@@ -161,19 +161,25 @@ const newest = (a, b) => (threadDate(a) < threadDate(b) ? 1 : -1);
 
 // --- Build one feed -------------------------------------------------------------------------
 
-async function buildFeed(channelId, limit, kind /* "news" | "devblog" */) {
-  if (!channelId) return [];
-  const channel = await dfetch(`/channels/${channelId}`);
+// Split a message body into a card title (first non-empty line) + summary (the rest).
+export function titleAndSummary(content, summaryMax) {
+  const raw = String(content || "");
+  const nl = raw.indexOf("\n");
+  const firstLine = plainText(nl >= 0 ? raw.slice(0, nl) : raw);
+  const rest = nl >= 0 ? plainText(raw.slice(nl + 1)) : "";
+  return { title: truncate(firstLine, 140), summary: truncate(rest, summaryMax) };
+}
+
+// Feed from a FORUM channel: one thread = one card (name -> title, first post -> summary, tag -> category/build).
+async function feedFromThreads(channel, channelId, limit, kind) {
   const tags = new Map((channel.available_tags || []).map((t) => [t.id, t.name]));
-  console.log(`${kind}: "${channel.name}" type=${channel.type} (15=forum), forum-tags=${tags.size}`);
   const threads = await collectThreads(channelId);
   const top = threads.sort(newest).slice(0, limit);
 
   const items = [];
   for (const t of top) {
-    const firstTag = (t.applied_tags || [])[0];
-    const tagName = firstTag ? tags.get(firstTag) || "" : "";
-    const base = {
+    const tagName = tags.get((t.applied_tags || [])[0]) || "";
+    const common = {
       id: t.id,
       date: threadDate(t),
       title: (t.name || "").trim(),
@@ -181,10 +187,48 @@ async function buildFeed(channelId, limit, kind /* "news" | "devblog" */) {
       url: `https://discord.com/channels/${cfg.guildId}/${t.id}`,
     };
     items.push(kind === "devblog"
-      ? { id: base.id, build: tagName.trim(), date: base.date, title: base.title, summary: base.summary, url: base.url }
-      : { id: base.id, date: base.date, category: mapCategory(tagName), title: base.title, summary: base.summary, url: base.url });
+      ? { id: common.id, build: tagName.trim(), date: common.date, title: common.title, summary: common.summary, url: common.url }
+      : { id: common.id, date: common.date, category: mapCategory(tagName), title: common.title, summary: common.summary, url: common.url });
   }
   return items;
+}
+
+// Feed from an ANNOUNCEMENT/TEXT channel: one message = one card. No tags here, so the news badge
+// is neutral and the devblog build pill is empty. Needs the Message Content intent for the body.
+async function feedFromMessages(channelId, limit, kind) {
+  const want = Math.min(100, Math.max(limit + 10, limit * 3));
+  const msgs = await dfetch(`/channels/${channelId}/messages?limit=${want}`); // newest first
+  const arr = Array.isArray(msgs) ? msgs : [];
+
+  const items = [];
+  for (const m of arr) {
+    if (m.type !== 0 && m.type !== 19) continue;      // skip system messages (joins, pins, …)
+    if (!plainText(m.content || "")) continue;         // skip image-only / empty posts
+    const { title, summary } = titleAndSummary(m.content, cfg.summaryMax);
+    const common = {
+      id: m.id,
+      date: m.timestamp || snowflakeToISO(m.id),
+      title,
+      summary,
+      url: `https://discord.com/channels/${cfg.guildId}/${channelId}/${m.id}`,
+    };
+    items.push(kind === "devblog"
+      ? { id: common.id, build: "", date: common.date, title: common.title, summary: common.summary, url: common.url }
+      : { id: common.id, date: common.date, category: "", title: common.title, summary: common.summary, url: common.url });
+    if (items.length >= limit) break;
+  }
+  console.log(`  ${kind}: ${items.length} card(s) from ${arr.length} messages`);
+  return items;
+}
+
+async function buildFeed(channelId, limit, kind /* "news" | "devblog" */) {
+  if (!channelId) return [];
+  const channel = await dfetch(`/channels/${channelId}`);
+  const isForum = channel.type === 15 || channel.type === 16; // GUILD_FORUM / GUILD_MEDIA
+  console.log(`${kind}: "${channel.name}" type=${channel.type} -> ${isForum ? "forum threads" : "channel messages"}`);
+  return isForum
+    ? feedFromThreads(channel, channelId, limit, kind)
+    : feedFromMessages(channelId, limit, kind);
 }
 
 // --- Main -----------------------------------------------------------------------------------
